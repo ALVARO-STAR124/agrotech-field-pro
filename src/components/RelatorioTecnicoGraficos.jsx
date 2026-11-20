@@ -1,9 +1,5 @@
 import React from "react";
 
-/**
- * Converte níveis qualitativos ("Baixo", "Médio", "Alto", "Adequado") em score numérico (0-100)
- * para visualização gráfica comparativa no relatório.
- */
 function nivelParaScore(nivel) {
   const mapa = {
     baixo: 30,
@@ -16,14 +12,12 @@ function nivelParaScore(nivel) {
 }
 
 function corPorScore(score) {
-  if (score < 45) return "#dc2626"; // vermelho (baixo / atenção)
-  if (score < 75) return "#d97706"; // âmbar (médio)
-  return "#15803d"; // verde (adequado / alto)
+  if (score < 45) return "#dc2626";
+  if (score < 75) return "#d97706";
+  return "#15803d";
 }
 
 export function GraficoNutrientesSVG({ dadosNutrientes }) {
-  // Exemplo esperado:
-  // [{ sigla: "P", rotulo: "Fósforo", nivel: "Médio", valor: "14 mg/dm³" }, ...]
   const largura = 560;
   const altura = 220;
   const margemEsquerda = 46;
@@ -47,7 +41,6 @@ export function GraficoNutrientesSVG({ dadosNutrientes }) {
         role="img"
         aria-label="Gráfico de disponibilidade de fósforo, potássio, cálcio e magnésio"
       >
-        {/* Linhas de referência horizontais */}
         {[25, 50, 75, 100].map((tick) => {
           const y = 24 + alturaGrafico - (tick / 100) * alturaGrafico;
           return (
@@ -74,7 +67,6 @@ export function GraficoNutrientesSVG({ dadosNutrientes }) {
           );
         })}
 
-        {/* Barras */}
         {dadosNutrientes.map((item, idx) => {
           const score = nivelParaScore(item.nivel);
           const hBarra = (score / 100) * alturaGrafico;
@@ -137,7 +129,6 @@ export function GraficoCalagemSVG({
   alAtual = 0.4,
   ncTonHa = 0.94,
 }) {
-  // Comparativo visual de Ca+Mg atual vs. neutralização de Al3+ / dose recomendada
   const somaCaMg = Number((caAtual + mgAtual).toFixed(2));
   const maxRef = Math.max(somaCaMg, alAtual, ncTonHa, 3.0);
 
@@ -267,7 +258,7 @@ export function GraficoCalagemSVG({
 
 export default function RelatorioTecnicoGraficos({
   talhao = "Talhão 01",
-  cultura = "Soja / Milho",
+  cultura = "Milho",
   argilaPct = 35,
   analise = {
     p: { valor: "14 mg/dm³", nivel: "Médio" },
@@ -277,9 +268,9 @@ export default function RelatorioTecnicoGraficos({
     al: { valor: "0.4 cmolc/dm³", num: 0.4 },
   },
   calagemTonHa = 0.94,
-  observacoes = "Realizar aplicação a lanço com incorporação ou antecipação conforme planejamento do talhão e monitorar o teor de argila para ajuste fino.",
+  observacoes = "Realizar aplicação conforme recomendação técnica, considerando o teor de argila e as condições do talhão.",
 }) {
-  const dataEmissao = new Date().toLocaleDateString("pt-BR");
+  const dataEmissao = new Date().toLocaleDateString("pt-PT");
 
   const dadosNutrientes = [
     { sigla: "P", nivel: analise.p.nivel, valor: analise.p.valor },
@@ -290,7 +281,6 @@ export default function RelatorioTecnicoGraficos({
 
   return (
     <section className="space-y-5 text-slate-900">
-      {/* Cabeçalho e dados da análise de solo */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 print:break-inside-avoid">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-4">
           <div>
@@ -306,7 +296,7 @@ export default function RelatorioTecnicoGraficos({
               <strong>Data de emissão:</strong> {dataEmissao}
             </div>
             <div>
-              <strong>Talhão:</strong> {talhao} • <strong>Cultura:</strong> {cultura}
+              <strong>Área/Talhão:</strong> {talhao} • <strong>Cultura:</strong> {cultura}
             </div>
           </div>
         </div>
@@ -344,7 +334,6 @@ export default function RelatorioTecnicoGraficos({
         </div>
       </div>
 
-      {/* Gráficos lado a lado na tela e empilhados no mobile/impressão */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <GraficoNutrientesSVG dadosNutrientes={dadosNutrientes} />
         <GraficoCalagemSVG
@@ -355,7 +344,6 @@ export default function RelatorioTecnicoGraficos({
         />
       </div>
 
-      {/* Parecer técnico e botão de impressão */}
       <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 print:break-inside-avoid">
         <div>
           <h4 className="text-sm font-bold text-slate-900 mb-1">
@@ -368,7 +356,7 @@ export default function RelatorioTecnicoGraficos({
           onClick={() => window.print()}
           className="shrink-0 px-4 py-2 rounded-lg bg-emerald-800 text-white text-sm font-semibold hover:bg-emerald-900 print:hidden"
         >
-          Imprimir / Salvar PDF
+          Imprimir / Guardar PDF
         </button>
       </div>
     </section>
