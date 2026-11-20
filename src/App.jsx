@@ -11,16 +11,120 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
-  Info,
   Printer,
-  Send,
   Compass,
   Droplets,
-  TrendingUp,
-  Sun,
-  Layers,
-  Activity
+  Layers
 } from 'lucide-react';
+
+// --- FUNÇÕES AGRONÓMICAS: DISPONIBILIDADE DE NUTRIENTES E CALAGEM (Ca + Mg e Al³⁺) ---
+function classificarDisponibilidade(nutriente, valor, argila = 30) {
+  if (valor === '' || valor === null || valor === undefined || Number.isNaN(Number(valor))) {
+    return '—';
+  }
+  const v = Number(valor);
+  const arg = Number(argila) || 30;
+
+  if (nutriente === 'P') {
+    const fatorArgila = arg > 40 ? 0.7 : arg >= 20 ? 1.0 : 1.3;
+    if (v <= 4 * fatorArgila) return 'Muito Baixo';
+    if (v <= 8 * fatorArgila) return 'Baixo';
+    if (v <= 15 * fatorArgila) return 'Médio';
+    if (v <= 25 * fatorArgila) return 'Bom';
+    return 'Muito Alto';
+  }
+
+  if (nutriente === 'K') {
+    if (v <= 15) return 'Muito Baixo';
+    if (v <= 30) return 'Baixo';
+    if (v <= 60) return 'Médio';
+    if (v <= 100) return 'Bom';
+    return 'Muito Alto';
+  }
+
+  if (nutriente === 'Ca') {
+    if (v < 0.8) return 'Muito Baixo';
+    if (v < 1.5) return 'Baixo';
+    if (v < 2.5) return 'Médio';
+    if (v <= 4.0) return 'Bom';
+    return 'Muito Alto';
+  }
+
+  if (nutriente === 'Mg') {
+    if (v < 0.2) return 'Muito Baixo';
+    if (v < 0.5) return 'Baixo';
+    if (v < 0.9) return 'Médio';
+    if (v <= 1.5) return 'Bom';
+    return 'Muito Alto';
+  }
+
+  return '—';
+}
+
+function badgeClasseDisponibilidade(classe) {
+  switch (classe) {
+    case 'Muito Baixo':
+      return 'bg-red-100 text-red-800 border-red-300';
+    case 'Baixo':
+      return 'bg-orange-100 text-orange-800 border-orange-300';
+    case 'Médio':
+      return 'bg-amber-100 text-amber-800 border-amber-300';
+    case 'Bom':
+      return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+    case 'Muito Alto':
+      return 'bg-sky-100 text-sky-800 border-sky-300';
+    default:
+      return 'bg-stone-100 text-stone-700 border-stone-300';
+  }
+}
+
+function calcularCalagemCaMgAl({
+  ca,
+  mg,
+  al,
+  argila = 30,
+  caMgExigido = 3.2,
+  fatorY = '',
+  prnt = 85
+}) {
+  const caNum = Math.max(0, Number(ca) || 0);
+  const mgNum = Math.max(0, Number(mg) || 0);
+  const alNum = Math.max(0, Number(al) || 0);
+  const argNum = Math.max(0, Number(argila) || 30);
+  const exigidoNum = Math.max(0, Number(caMgExigido) || 0);
+  const prntNum = Math.max(Number(prnt) || 85, 1);
+
+  const yEstimado =
+    argNum <= 15 ? 1.0 : argNum <= 35 ? 1.5 : argNum <= 60 ? 2.0 : 2.5;
+  const yUsado =
+    fatorY !== '' && fatorY !== null && !Number.isNaN(Number(fatorY))
+      ? Math.max(0, Number(fatorY))
+      : yEstimado;
+
+  const ncAl = yUsado * alNum;
+  const somaCaMgAtual = caNum + mgNum;
+  const ncCaMg = Math.max(0, exigidoNum - somaCaMgAtual);
+
+  const ncBase = Math.max(ncAl, ncCaMg);
+  const quantidadeTonHa = ncBase * (100 / prntNum);
+
+  const criterioLimitante =
+    ncBase === 0
+      ? 'Sem necessidade de calagem'
+      : ncAl >= ncCaMg
+      ? 'Neutralização de Al³⁺'
+      : 'Elevação de Ca + Mg';
+
+  return {
+    somaCaMgAtual: Number(somaCaMgAtual.toFixed(2)),
+    ncAl: Number(ncAl.toFixed(2)),
+    ncCaMg: Number(ncCaMg.toFixed(2)),
+    ncBase: Number(ncBase.toFixed(2)),
+    quantidadeTonHa: Number(quantidadeTonHa.toFixed(2)),
+    criterioLimitante,
+    yUsado: Number(yUsado.toFixed(2))
+  };
+}
 
 // --- DADOS TÉCNICOS E ILUSTRAÇÕES DIAGNÓSTICAS (VETORIAIS HD) ---
 const TECHNICAL_GUIDES = [
@@ -31,11 +135,11 @@ const TECHNICAL_GUIDES = [
     title: 'Lagarta-do-cartucho (Spodoptera frugiperda)',
     severity: 'Alta',
     economicThreshold: '20% das plantas com folhas raspadas (nota ≥ 3 na escala Davis) até V8.',
-    symptoms: 'Folhas raspadas ("janelas" translúcidas), fezes úmidas e serragem no interior do cartucho, podendo cortar plantas jovens rente ao solo.',
+    symptoms: 'Folhas raspadas ("janelas" translúcidas), fezes húmidas e serragem no interior do cartucho, podendo cortar plantas jovens rente ao solo.',
     management: [
-      'Monitoramento semanal desde a emergência (VE) até o pendoamento (VT).',
+      'Monitorização semanal desde a emergência (VE) até ao pendoamento (VT).',
       'Uso de híbridos com tecnologia Bt (Vip3Aa20, Cry1F) combinados com refúgio estruturado (10% a 20%).',
-      'Controle biológico com Trichogramma pretiosum (ovos) e Baculovirus spodoptera.',
+      'Controlo biológico com Trichogramma pretiosum (ovos) e Baculovirus spodoptera.',
       'Rotação de grupos químicos (Espinosinas, Diamidas, Benzoilureias) para evitar resistência.'
     ],
     svgIllustration: (
@@ -48,13 +152,10 @@ const TECHNICAL_GUIDES = [
         </defs>
         <path d="M20,220 Q120,40 380,30 Q260,140 160,230 Z" fill="url(#leafGrad)" />
         <path d="M20,220 Q180,110 380,30" stroke="#22c55e" strokeWidth="3" fill="none" opacity="0.6" />
-        {/* Raspagem / Janela foliar */}
         <ellipse cx="180" cy="115" rx="28" ry="14" fill="#fef08a" opacity="0.85" transform="rotate(-25 180 115)" />
         <ellipse cx="235" cy="85" rx="18" ry="9" fill="#fef08a" opacity="0.85" transform="rotate(-25 235 85)" />
-        {/* Lagarta com Y invertido na cápsula cefálica */}
         <path d="M135,145 Q165,120 195,130 T245,115" stroke="#78350f" strokeWidth="16" strokeLinecap="round" fill="none" />
         <path d="M135,145 Q165,120 195,130 T245,115" stroke="#a16207" strokeWidth="10" strokeLinecap="round" strokeDasharray="8 6" fill="none" />
-        {/* Cabeça e Y invertido */}
         <circle cx="250" cy="113" r="10" fill="#451a03" />
         <path d="M246,110 L250,114 L254,110 M250,114 L250,120" stroke="#fde047" strokeWidth="2" fill="none" />
         <text x="15" y="25" fill="#ecfdf5" fontSize="12" fontWeight="bold">Identificação: "Y" invertido na cabeça + 4 pontos pretos no dorso</text>
@@ -71,23 +172,18 @@ const TECHNICAL_GUIDES = [
     symptoms: 'Corte dos estilo-estigmas (falha na granação), destruição dos grãos leitosos na ponta da espiga e porta de entrada para fungos produtores de micotoxinas (Fusarium).',
     management: [
       'Amostragem direcionada aos estilo-estigmas logo no início do embonecamento (R1).',
-      'Liberação de parasitoides de ovos (Trichogramma) no início da emissão dos cabelos.',
+      'Libertação de parasitoides de ovos (Trichogramma) no início da emissão dos cabelos.',
       'Aplicação direcionada à espiga antes que a lagarta penetre sob a palha.'
     ],
     svgIllustration: (
       <svg viewBox="0 0 400 240" className="w-full h-full bg-amber-950 rounded-lg">
-        {/* Espiga */}
         <ellipse cx="200" cy="130" rx="110" ry="45" fill="#facc15" />
-        {/* Grãos */}
         {[...Array(8)].map((_, i) => (
           <line key={i} x1={115 + i * 24} y1="88" x2={115 + i * 24} y2="172" stroke="#ca8a04" strokeWidth="2" />
         ))}
-        {/* Palha */}
         <path d="M85,130 Q150,65 290,85 Q180,95 95,130 Z" fill="#15803d" />
         <path d="M85,130 Q150,195 290,175 Q180,165 95,130 Z" fill="#166534" />
-        {/* Cabelo do milho */}
         <path d="M305,115 Q345,105 365,125 M308,130 Q350,130 370,140 M305,142 Q340,155 360,160" stroke="#92400e" strokeWidth="3" fill="none" />
-        {/* Lagarta na ponta */}
         <path d="M265,125 Q285,112 305,122" stroke="#65a30d" strokeWidth="13" strokeLinecap="round" fill="none" />
         <circle cx="308" cy="123" r="7" fill="#d97706" />
         <text x="15" y="25" fill="#fef3c7" fontSize="12" fontWeight="bold">Ataque em R1: Dano apical e porta para podridões de espiga</text>
@@ -110,14 +206,11 @@ const TECHNICAL_GUIDES = [
     svgIllustration: (
       <svg viewBox="0 0 400 240" className="w-full h-full bg-stone-900 rounded-lg">
         <rect x="30" y="45" width="340" height="150" rx="12" fill="#15803d" />
-        {/* Nervuras paralelas */}
         {[65, 90, 115, 140, 165].map((y, idx) => (
           <line key={idx} x1="30" y1={y} x2="370" y2={y} stroke="#22c55e" strokeWidth="2" opacity="0.5" />
         ))}
-        {/* Lesões retangulares de Cercospora */}
         <rect x="85" y="67" width="65" height="21" fill="#a8a29e" stroke="#78350f" strokeWidth="2" />
         <rect x="210" y="117" width="80" height="21" fill="#a8a29e" stroke="#78350f" strokeWidth="2" />
-        {/* Pústulas alaranjadas de Ferrugem-polissora */}
         {[
           [175, 78], [185, 82], [170, 86], [260, 75], [272, 80],
           [110, 152], [122, 156], [135, 150], [310, 154]
@@ -137,22 +230,17 @@ const TECHNICAL_GUIDES = [
     economicThreshold: '15 a 20 ninfas/m² na base das touceiras no início do período chuvoso.',
     symptoms: 'Ninfas envoltas em espuma branca na base da planta sugando seiva; adultos injetam toxinas causando amarelecimento e seca ("queima" da pastagem).',
     management: [
-      'Manejo de altura do pastejo: evitar acúmulo excessivo de palhada/macega no fim da seca.',
-      'Diversificação com gramíneas resistentes (ex: Brachiaria brizantha cv. Marandu, Piatã ou Paiaguás).',
-      'Controle biológico com fungo entomopatogênico Metarhizium anisopliae nas primeiras chuvas.'
+      'Manejo de altura da pastagem: evitar acumulação excessiva de palhada/macega no fim da seca.',
+      'Diversificação com gramíneas resistentes (ex.: Brachiaria brizantha cv. Marandu, Piatã ou Paiaguás).',
+      'Controlo biológico com fungo entomopatogénico Metarhizium anisopliae nas primeiras chuvas.'
     ],
     svgIllustration: (
       <svg viewBox="0 0 400 240" className="w-full h-full bg-lime-950 rounded-lg">
-        {/* Solo */}
         <rect x="0" y="185" width="400" height="55" fill="#451a03" />
-        {/* Touceira de capim */}
         <path d="M160,185 Q130,90 95,45 M175,185 Q165,80 155,35 M190,185 Q215,85 245,40 M205,185 Q250,110 295,75" stroke="#65a30d" strokeWidth="7" strokeLinecap="round" fill="none" />
-        {/* Pontas amareladas (queima) */}
         <path d="M95,45 L112,75 M245,40 L230,72 M295,75 L268,95" stroke="#eab308" strokeWidth="7" strokeLinecap="round" />
-        {/* Espuma na base */}
         <circle cx="175" cy="175" r="14" fill="#ffffff" opacity="0.9" />
         <circle cx="190" cy="178" r="11" fill="#f8fafc" opacity="0.9" />
-        {/* Inseto adulto */}
         <ellipse cx="235" cy="105" rx="14" ry="7" fill="#1c1917" transform="rotate(-20 235 105)" />
         <line x1="227" y1="103" x2="243" y2="99" stroke="#ef4444" strokeWidth="2.5" />
         <line x1="229" y1="109" x2="245" y2="105" stroke="#ef4444" strokeWidth="2.5" />
@@ -166,17 +254,16 @@ const TECHNICAL_GUIDES = [
     type: 'Manejo',
     title: 'Aplicação Estratégica de Herbicidas em Pastagem',
     severity: 'Operacional',
-    economicThreshold: 'Infestação acima de 15–20% da área útil com plantas daninhas competidoras.',
+    economicThreshold: 'Infestação acima de 15–20% da área útil com plantas infestantes competidoras.',
     symptoms: 'Redução da capacidade de suporte (UA/ha) por competição de luz, água e nutrientes por plantas de folha larga (assa-peixe, fedegoso, jurubeba) ou estreita.',
     management: [
       'Folhas largas herbáceas/semilenhosas: aplicação foliar no pleno vigor vegetativo (chuvoso) com 2,4-D + Picloram ou Fluroxipir + Triclopir.',
-      'Plantas lenhosas de difícil controle: aplicação localizada no toco logo após o corte (trato localizado).',
-      'Atenção rigorosa à deriva: evitar aplicação com vento > 10 km/h, umidade relativa < 55% ou temperatura > 30°C.'
+      'Plantas lenhosas de difícil controlo: aplicação localizada no cepo logo após o corte (trato localizado).',
+      'Atenção rigorosa à deriva: evitar aplicação com vento > 10 km/h, humidade relativa < 55% ou temperatura > 30°C.'
     ],
     svgIllustration: (
       <svg viewBox="0 0 400 240" className="w-full h-full bg-sky-950 rounded-lg">
         <rect x="0" y="170" width="400" height="70" fill="#15803d" />
-        {/* Barra pulverizadora */}
         <line x1="60" y1="60" x2="340" y2="60" stroke="#94a3b8" strokeWidth="6" />
         {[100, 170, 240, 310].map((x, idx) => (
           <g key={idx}>
@@ -184,7 +271,7 @@ const TECHNICAL_GUIDES = [
             <polygon points={`${x},70 ${x - 35},170 ${x + 35},170`} fill="#38bdf8" opacity="0.28" />
           </g>
         ))}
-        <text x="15" y="25" fill="#e0f2fe" fontSize="12" fontWeight="bold">Sobreposição de jato uniforme e controle de deriva em pastagens</text>
+        <text x="15" y="25" fill="#e0f2fe" fontSize="12" fontWeight="bold">Sobreposição de jato uniforme e controlo de deriva em pastagens</text>
       </svg>
     )
   },
@@ -192,10 +279,10 @@ const TECHNICAL_GUIDES = [
     id: 'milho_silagem',
     category: 'Silagem',
     type: 'Manejo',
-    title: 'Plantio e Ponto de Colheita de Milho para Silagem',
+    title: 'Sementeira e Ponto de Colheita de Milho para Silagem',
     severity: 'Estratégico',
     economicThreshold: 'Janela ideal: 32% a 37% de Matéria Seca (MS) na planta inteira (1/2 a 2/3 da linha do leite).',
-    symptoms: 'Colheita precoce (<28% MS) gera efluentes (chorume) e perda de amido. Colheita tardia (>40% MS) dificulta a compactação e reduz digestibilidade da fibra.',
+    symptoms: 'Colheita precoce (<28% MS) gera efluentes (chorume) e perda de amido. Colheita tardia (>40% MS) dificulta a compactação e reduz a digestibilidade da fibra.',
     management: [
       'Escolha de híbridos com alta digestibilidade de fibra (FDN) e elevado teor de amido nos grãos.',
       'Tamanho de partícula ideal: 8 a 15 mm com processamento adequado de grãos (cracker) para quebrar 100% dos grãos.',
@@ -203,15 +290,12 @@ const TECHNICAL_GUIDES = [
     ],
     svgIllustration: (
       <svg viewBox="0 0 400 240" className="w-full h-full bg-amber-900 rounded-lg">
-        {/* Grão em corte transversal */}
         <path d="M150,45 L250,45 L235,195 L165,195 Z" fill="#fef08a" stroke="#ca8a04" strokeWidth="4" />
-        {/* Amido vítreo/farináceo superior */}
         <path d="M150,45 L250,45 L242,125 L158,125 Z" fill="#f59e0b" />
-        {/* Linha do leite em 2/3 */}
         <line x1="154" y1="125" x2="246" y2="125" stroke="#dc2626" strokeWidth="4" strokeDasharray="6 4" />
         <text x="262" y="129" fill="#ffffff" fontSize="12" fontWeight="bold">← 1/2 a 2/3 Linha do Leite</text>
         <text x="262" y="148" fill="#fde047" fontSize="11">(33% a 36% MS Ideal)</text>
-        <text x="15" y="25" fill="#fef3c7" fontSize="12" fontWeight="bold">Monitoramento da Linha do Leite no Grão para Colheita</text>
+        <text x="15" y="25" fill="#fef3c7" fontSize="12" fontWeight="bold">Monitorização da Linha do Leite no Grão para Colheita</text>
       </svg>
     )
   },
@@ -219,21 +303,20 @@ const TECHNICAL_GUIDES = [
     id: 'engorda_gado',
     category: 'Pecuária',
     type: 'Zootecnia',
-    title: 'Engorda de Gado: Pastejo Rotacionado e Suplementação',
+    title: 'Engorda de Bovinos: Pastejo Rotacionado e Suplementação',
     severity: 'Produtividade',
     economicThreshold: 'Meta: GMD > 0,85 kg/dia nas águas e > 0,55 kg/dia na seca (recria/terminação).',
-    symptoms: 'Perda de peso na transição águas-seca ("efeito sanfona") e superpastejo que degrada o sistema radicular da forrageira.',
+    symptoms: 'Perda de peso na transição águas-seca ("efeito sanfona") e sobrepastejo que degrada o sistema radicular da forrageira.',
     management: [
-      'Respeitar altura de entrada e saída (ex: Brachiaria Marandu: entrada 30–35 cm, saída 15 cm).',
+      'Respeitar altura de entrada e saída (ex.: Brachiaria Marandu: entrada 30–35 cm, saída 15 cm).',
       'Águas: suplementação mineral aditivada ou proteinado de baixo consumo (0,1% PV) para maximizar ganho.',
       'Seca: suplementação proteico-energética (0,3% a 0,5% PV) ou semiconfinamento (TIP - Terminação Intensiva a Pasto).'
     ],
     svgIllustration: (
       <svg viewBox="0 0 400 240" className="w-full h-full bg-emerald-900 rounded-lg">
-        {/* Régua de manejo */}
         <line x1="70" y1="40" x2="70" y2="200" stroke="#ffffff" strokeWidth="3" />
         <line x1="60" y1="70" x2="340" y2="70" stroke="#4ade80" strokeWidth="2" strokeDasharray="5 5" />
-        <text x="80" y="64" fill="#4ade80" fontSize="12" fontWeight="bold">Entrada: 30-35 cm (95% Interceptação Luminosa)</text>
+        <text x="80" y="64" fill="#4ade80" fontSize="12" fontWeight="bold">Entrada: 30-35 cm (95% Interceção Luminosa)</text>
         <line x1="60" y1="145" x2="340" y2="145" stroke="#facc15" strokeWidth="2" strokeDasharray="5 5" />
         <text x="80" y="139" fill="#facc15" fontSize="12" fontWeight="bold">Saída: 15 cm (Preservação de gemas e rebrote)</text>
         <rect x="0" y="200" width="400" height="40" fill="#451a03" />
@@ -259,11 +342,24 @@ export default function AgroTechFieldPro() {
   const [espacamentoBicos, setEspacamentoBicos] = useState(0.5); // metros
   const [capacidadeTanque, setCapacidadeTanque] = useState(600); // litros
 
-  // --- ESTADOS: CALCULADORA 2 - CALAGEM ---
-  const [vAtual, setVAtual] = useState(38); // %
-  const [vDesejado, setVDesejado] = useState(60); // %
-  const [ctcSolo, setCtcSolo] = useState(7.5); // cmolc/dm³
+  // --- ESTADOS: CALCULADORA 2 - CALAGEM (Ca + Mg e Al³⁺) & FERTILIDADE NATURAL ---
+  const [caAtual, setCaAtual] = useState(1.8); // cmolc/dm³
+  const [mgAtual, setMgAtual] = useState(0.6); // cmolc/dm³
+  const [alAtual, setAlAtual] = useState(0.5); // cmolc/dm³
+  const [pAtual, setPAtual] = useState(10); // mg/dm³
+  const [kAtual, setKAtual] = useState(45); // mg/dm³
+  const [argilaAtual, setArgilaAtual] = useState(30); // %
+  const [caMgExigido, setCaMgExigido] = useState(3.2); // cmolc/dm³
+  const [fatorY, setFatorY] = useState(''); // vazio = estima pela argila
   const [prntCalcario, setPrntCalcario] = useState(85); // %
+
+  const [incluirFertilidadeNatural, setIncluirFertilidadeNatural] = useState(false);
+  const [caNatural, setCaNatural] = useState(1.2);
+  const [mgNatural, setMgNatural] = useState(0.4);
+  const [alNatural, setAlNatural] = useState(0.9);
+  const [pNatural, setPNatural] = useState(6);
+  const [kNatural, setKNatural] = useState(28);
+  const [argilaNatural, setArgilaNatural] = useState(30);
 
   // --- ESTADOS: CALCULADORA 3 - SEMENTES DE MILHO ---
   const [populacaoDesejada, setPopulacaoDesejada] = useState(65000); // plantas/ha
@@ -273,9 +369,9 @@ export default function AgroTechFieldPro() {
 
   // --- ESTADOS: LAUDO TÉCNICO ---
   const [produtorNome, setProdutorNome] = useState('Fazenda Santa Clara - Talhão 04');
-  const [responsavelTecnico, setResponsavelTecnico] = useState('Eng. Agrônomo Responsável');
+  const [responsavelTecnico, setResponsavelTecnico] = useState('Eng. Agrónomo Responsável');
   const [observacoesCampo, setObservacoesCampo] = useState(
-    'Realizar aplicação de calcário com antecedência mínima de 60 dias antes do plantio. Monitorar incidência inicial de cigarrinha e lagarta-do-cartucho.'
+    'Realizar aplicação de calcário (dimensionado por Ca + Mg e neutralização de Al³⁺) com antecedência mínima de 60 dias antes da sementeira. Monitorizar incidência inicial de cigarrinha e lagarta-do-cartucho.'
   );
 
   // --- CÁLCULOS VALIDADOS ---
@@ -283,7 +379,6 @@ export default function AgroTechFieldPro() {
     if (velocidadeTrator <= 0 || espacamentoBicos <= 0 || vazaoBico < 0) {
       return { volumeCalda: 0, autonomiaHa: 0, status: 'Inválido' };
     }
-    // Q (L/ha) = (q (L/min) * 600) / (V (km/h) * E (m))
     const volumeCalda = (vazaoBico * 600) / (velocidadeTrator * espacamentoBicos);
     const autonomiaHa = volumeCalda > 0 ? capacidadeTanque / volumeCalda : 0;
     let status = 'Ideal para Herbicida Pós-emergente';
@@ -296,16 +391,37 @@ export default function AgroTechFieldPro() {
     };
   }, [vazaoBico, velocidadeTrator, espacamentoBicos, capacidadeTanque]);
 
-  const resultCalagem = useMemo(() => {
-    if (prntCalcario <= 0 || ctcSolo < 0) return { doseTha: 0, necessario: false };
-    if (vDesejado <= vAtual) return { doseTha: 0, necessario: false };
-    // NC (t/ha) = ((V2 - V1) * CTC) / PRNT
-    const doseTha = ((vDesejado - vAtual) * ctcSolo) / prntCalcario;
-    return {
-      doseTha: doseTha.toFixed(2),
-      necessario: true
-    };
-  }, [vAtual, vDesejado, ctcSolo, prntCalcario]);
+  const resultadoCalagem = useMemo(() => {
+    return calcularCalagemCaMgAl({
+      ca: caAtual,
+      mg: mgAtual,
+      al: alAtual,
+      argila: argilaAtual,
+      caMgExigido,
+      fatorY,
+      prnt: prntCalcario
+    });
+  }, [caAtual, mgAtual, alAtual, argilaAtual, caMgExigido, fatorY, prntCalcario]);
+
+  const classesAtuais = useMemo(
+    () => ({
+      P: classificarDisponibilidade('P', pAtual, argilaAtual),
+      K: classificarDisponibilidade('K', kAtual, argilaAtual),
+      Ca: classificarDisponibilidade('Ca', caAtual, argilaAtual),
+      Mg: classificarDisponibilidade('Mg', mgAtual, argilaAtual)
+    }),
+    [pAtual, kAtual, caAtual, mgAtual, argilaAtual]
+  );
+
+  const classesNaturais = useMemo(
+    () => ({
+      P: classificarDisponibilidade('P', pNatural, argilaNatural),
+      K: classificarDisponibilidade('K', kNatural, argilaNatural),
+      Ca: classificarDisponibilidade('Ca', caNatural, argilaNatural),
+      Mg: classificarDisponibilidade('Mg', mgNatural, argilaNatural)
+    }),
+    [pNatural, kNatural, caNatural, mgNatural, argilaNatural]
+  );
 
   const resultSementes = useMemo(() => {
     if (espacamentoLinhas <= 0 || populacaoDesejada <= 0 || germinacaoSemente <= 0) {
@@ -315,7 +431,7 @@ export default function AgroTechFieldPro() {
     const plantasMetro = populacaoDesejada / metrosLinearesHa;
     const sementesMetro = plantasMetro / (germinacaoSemente / 100);
     const totalSementesHa = sementesMetro * metrosLinearesHa;
-    const sacosHa = totalSementesHa / 60000; // Saco padrão de 60 mil sementes
+    const sacosHa = totalSementesHa / 60000;
     return {
       plantasMetro: plantasMetro.toFixed(2),
       sementesMetro: sementesMetro.toFixed(2),
@@ -326,7 +442,7 @@ export default function AgroTechFieldPro() {
   const droneMetrics = useMemo(() => {
     const rendimentoDroneHaHora = droneDeclive === 'acentuado' ? 9.5 : 13.0;
     const horasDrone = droneArea / rendimentoDroneHaHora;
-    const aguaEconomizadaLitros = droneArea * (150 - 12); // 150 L/ha trator vs 12 L/ha drone
+    const aguaEconomizadaLitros = droneArea * (150 - 12);
     return {
       horasDrone: horasDrone.toFixed(1),
       aguaEconomizadaLitros: aguaEconomizadaLitros.toLocaleString('pt-BR')
@@ -405,7 +521,7 @@ export default function AgroTechFieldPro() {
           </div>
           <div>
             <span className="font-extrabold text-base block leading-none">AgroTech Field Pro</span>
-            <span className="text-[11px] text-amber-400 font-semibold">Gestão Agronômica</span>
+            <span className="text-[11px] text-amber-400 font-semibold">Gestão Agronómica</span>
           </div>
         </div>
         <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-emerald-900 px-2.5 py-1 rounded-full text-emerald-200 border border-emerald-700">
@@ -431,16 +547,15 @@ export default function AgroTechFieldPro() {
                       Diagnóstico Visual e Manejo Técnico
                     </h2>
                     <p className="text-stone-600 text-sm sm:text-base mt-1">
-                      Toque nas ilustrações para ampliar no campo e consultar níveis de dano econômico.
+                      Toque nas ilustrações para ampliar no campo e consultar níveis de dano económico.
                     </p>
                   </div>
 
-                  {/* Busca */}
                   <div className="relative w-full lg:w-80">
                     <Search className="w-5 h-5 text-stone-400 absolute left-3.5 top-3" />
                     <input
                       type="text"
-                      placeholder="Buscar praga, doença ou cultura..."
+                      placeholder="Pesquisar praga, doença ou cultura..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full pl-11 pr-4 py-2.5 rounded-xl border-2 border-stone-300 bg-stone-50 font-medium text-stone-900 focus:border-emerald-700 focus:bg-white outline-none"
@@ -448,7 +563,6 @@ export default function AgroTechFieldPro() {
                   </div>
                 </div>
 
-                {/* Filtros de Cultura */}
                 <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-stone-200">
                   {['Todos', 'Milho', 'Pastagem', 'Silagem', 'Pecuária'].map((cat) => (
                     <button
@@ -466,14 +580,12 @@ export default function AgroTechFieldPro() {
                 </div>
               </div>
 
-              {/* Cards Técnicos */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {filteredGuides.map((guide) => (
                   <article
                     key={guide.id}
                     className="bg-white rounded-2xl border-2 border-stone-200 overflow-hidden shadow-sm flex flex-col"
                   >
-                    {/* Área Visual com Botão de Zoom */}
                     <div
                       onClick={() => setZoomGuide(guide)}
                       className="relative h-52 cursor-pointer group overflow-hidden bg-stone-900"
@@ -508,7 +620,7 @@ export default function AgroTechFieldPro() {
                         <div className="mt-3 p-3 rounded-xl bg-amber-50 border border-amber-300">
                           <p className="text-xs font-extrabold uppercase text-amber-900 flex items-center gap-1.5">
                             <AlertTriangle className="w-4 h-4 text-amber-700" />
-                            Nível de Dano Econômico / Critério
+                            Nível de Dano Económico / Critério
                           </p>
                           <p className="text-sm font-semibold text-stone-800 mt-1">
                             {guide.economicThreshold}
@@ -522,7 +634,7 @@ export default function AgroTechFieldPro() {
 
                       <div className="pt-3 border-t border-stone-200">
                         <p className="text-xs font-extrabold uppercase text-emerald-900 mb-2">
-                          Protocolo de Controle Recomendado:
+                          Protocolo de Controlo Recomendado:
                         </p>
                         <ul className="space-y-1.5">
                           {guide.management.map((step, i) => (
@@ -557,7 +669,6 @@ export default function AgroTechFieldPro() {
                 </p>
               </div>
 
-              {/* 3 Pilares de Aplicação */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                 <div className="bg-white p-5 rounded-2xl border-2 border-stone-200 shadow-sm">
                   <div className="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center mb-4">
@@ -565,7 +676,7 @@ export default function AgroTechFieldPro() {
                   </div>
                   <h3 className="font-black text-lg text-stone-900">Pulverização em Declives e Grotas</h3>
                   <p className="text-sm text-stone-700 mt-2 leading-relaxed">
-                    Acesso seguro em pastagens acidentadas, áreas encharcadas ou com presença de tocos/pedras onde o trator não entra, mantendo altura constante via radar de terreno.
+                    Acesso seguro em pastagens acidentadas, áreas encharcadas ou com presença de cepos/pedras onde o trator não entra, mantendo altura constante via radar de terreno.
                   </p>
                 </div>
 
@@ -575,7 +686,7 @@ export default function AgroTechFieldPro() {
                   </div>
                   <h3 className="font-black text-lg text-stone-900">Mapeamento Multiespectral (NDVI)</h3>
                   <p className="text-sm text-stone-700 mt-2 leading-relaxed">
-                    Identificação precisa de falhas de estande, compactação, erosão laminar e reboleiras de plantas daninhas, permitindo aplicação localizada (taxa variável) e economia de herbicidas.
+                    Identificação precisa de falhas de estande, compactação, erosão laminar e reboleiras de plantas infestantes, permitindo aplicação localizada (taxa variável) e economia de herbicidas.
                   </p>
                 </div>
 
@@ -585,86 +696,79 @@ export default function AgroTechFieldPro() {
                   </div>
                   <h3 className="font-black text-lg text-stone-900">Dispersão de Sementes e Biológicos</h3>
                   <p className="text-sm text-stone-700 mt-2 leading-relaxed">
-                    Sobressemeadura de forrageiras e leguminosas (ex: Estilosantes) e liberação uniforme de agentes biológicos para controle de cigarrinhas e lagartas sem compactar o solo.
+                    Sobressemeadura de forrageiras e leguminosas (ex.: Estilosantes) e libertação uniforme de agentes biológicos para controlo de cigarrinhas e lagartas sem compactar o solo.
                   </p>
                 </div>
               </div>
 
-              {/* Comparativo Operacional + Simulador */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm overflow-x-auto">
-                  <h3 className="font-black text-lg text-stone-900 mb-4">
-                    Comparativo Operacional: Drone Pulverizador vs. Tratorizado
+                  <h3 className="text-lg font-black text-stone-900 mb-4">
+                    Comparativo Operacional: Drone Agrícola vs. Trator/Barra
                   </h3>
                   <table className="w-full text-left border-collapse text-sm">
                     <thead>
-                      <tr className="bg-stone-100 border-b-2 border-stone-300 text-stone-900">
-                        <th className="p-3 font-extrabold">Parâmetro Técnico</th>
-                        <th className="p-3 font-extrabold text-emerald-900">Drone Agrícola (VANT)</th>
-                        <th className="p-3 font-extrabold text-stone-600">Pulverizador Tratorizado</th>
+                      <tr className="border-b-2 border-stone-200 text-stone-700">
+                        <th className="py-2.5 pr-4 font-extrabold">Critério</th>
+                        <th className="py-2.5 px-4 font-extrabold text-emerald-900">Drone (VANT)</th>
+                        <th className="py-2.5 pl-4 font-extrabold text-stone-700">Trator + Barra</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-200">
                       <tr>
-                        <td className="p-3 font-bold">Volume de Calda</td>
-                        <td className="p-3 font-semibold text-emerald-800">8 a 15 L/ha (Ultra Baixo Volume)</td>
-                        <td className="p-3 text-stone-700">100 a 200 L/ha</td>
+                        <td className="py-3 pr-4 font-bold">Volume de Calda</td>
+                        <td className="py-3 px-4 font-semibold text-emerald-800">10 a 20 L/ha (ultrabaixo/baixo volume)</td>
+                        <td className="py-3 pl-4 text-stone-700">100 a 200 L/ha</td>
                       </tr>
                       <tr>
-                        <td className="p-3 font-bold">Amassamento de Pasto</td>
-                        <td className="p-3 font-semibold text-emerald-800">Zero (0% de perda mecânica)</td>
-                        <td className="p-3 text-stone-700">3% a 7% da área útil</td>
+                        <td className="py-3 pr-4 font-bold">Compactação do Solo</td>
+                        <td className="py-3 px-4 font-semibold text-emerald-800">Zero (sem rodado)</td>
+                        <td className="py-3 pl-4 text-stone-700">Presente em solo húmido</td>
                       </tr>
                       <tr>
-                        <td className="p-3 font-bold">Operação em Declive &gt; 20%</td>
-                        <td className="p-3 font-semibold text-emerald-800">Total segurança operacional</td>
-                        <td className="p-3 text-stone-700">Alto risco de tombamento</td>
-                      </tr>
-                      <tr>
-                        <td className="p-3 font-bold">Aplicação Localizada (Catação)</td>
-                        <td className="p-3 font-semibold text-emerald-800">Automática via mapa de prescrição</td>
-                        <td className="p-3 text-stone-700">Manual ou barra total</td>
+                        <td className="py-3 pr-4 font-bold">Terrenos Inclinados / Grotas</td>
+                        <td className="py-3 px-4 font-semibold text-emerald-800">Alta eficiência com radar</td>
+                        <td className="py-3 pl-4 text-stone-700">Risco operacional / restrito</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
 
-                {/* Simulador de Rendimento com Drone */}
-                <div className="bg-amber-50 p-6 rounded-2xl border-2 border-amber-300 shadow-sm space-y-4">
-                  <h3 className="font-black text-lg text-amber-950">Simulador Logístico de VANT</h3>
+                <div className="bg-emerald-950 text-white p-6 rounded-2xl shadow-md space-y-4">
+                  <h3 className="text-lg font-black text-amber-400">Simulador Operacional de Drone</h3>
                   <div>
-                    <label className="block text-xs font-extrabold uppercase text-stone-800 mb-1">
-                      Área de Pastagem (hectares)
+                    <label className="block text-xs font-bold uppercase text-emerald-200">
+                      Área do Talhão (ha)
                     </label>
                     <input
                       type="number"
                       min="1"
                       value={droneArea}
-                      onChange={(e) => setDroneArea(Math.max(1, Number(e.target.value)))}
-                      className="w-full p-2.5 rounded-xl border-2 border-amber-400 bg-white font-bold text-stone-900"
+                      onChange={(e) => setDroneArea(Math.max(1, Number(e.target.value) || 0))}
+                      className="mt-1 w-full rounded-xl bg-emerald-900 border border-emerald-700 px-3 py-2 text-sm font-bold text-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-extrabold uppercase text-stone-800 mb-1">
-                      Topografia do Terreno
+                    <label className="block text-xs font-bold uppercase text-emerald-200">
+                      Relevo / Declividade
                     </label>
                     <select
                       value={droneDeclive}
                       onChange={(e) => setDroneDeclive(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border-2 border-amber-400 bg-white font-bold text-stone-900"
+                      className="mt-1 w-full rounded-xl bg-emerald-900 border border-emerald-700 px-3 py-2 text-sm font-bold text-white"
                     >
-                      <option value="plano">Plano / Suave Ondulado</option>
-                      <option value="acentuado">Declive Acentuado / Grotas</option>
+                      <option value="plano">Plano / Suave (13,0 ha/h)</option>
+                      <option value="acentuado">Acentuado / Grotas (9,5 ha/h)</option>
                     </select>
                   </div>
-                  <div className="p-4 bg-white rounded-xl border border-amber-300 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-600 font-semibold">Tempo estimado de voo:</span>
-                      <span className="font-black text-emerald-900">{droneMetrics.horasDrone} horas</span>
+                  <div className="pt-2 border-t border-emerald-800 space-y-2">
+                    <div>
+                      <span className="text-xs text-emerald-200 block">Tempo Estimado de Operação</span>
+                      <span className="text-2xl font-black text-amber-400">{droneMetrics.horasDrone} h</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-stone-600 font-semibold">Água economizada:</span>
-                      <span className="font-black text-emerald-900">{droneMetrics.aguaEconomizadaLitros} L</span>
+                    <div>
+                      <span className="text-xs text-emerald-200 block">Economia Estimada de Água</span>
+                      <span className="text-lg font-bold text-white">{droneMetrics.aguaEconomizadaLitros} L</span>
                     </div>
                   </div>
                 </div>
@@ -673,265 +777,450 @@ export default function AgroTechFieldPro() {
           )}
 
           {/* ========================================================= */}
-          {/* MÓDULO 3: CALCULADORA DO AGRO (FERRAMENTAS DE CAMPO)      */}
+          {/* MÓDULO 3: CALCULADORAS AGRONÓMICAS                        */}
           {/* ========================================================= */}
           {activeTab === 'calculadoras' && (
-            <section className="space-y-6">
-              <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl sm:text-3xl font-black text-stone-900">
-                    Calculadora Agronômica de Campo
-                  </h2>
-                  <p className="text-stone-600 text-sm sm:text-base mt-1">
-                    Algoritmos validados com proteção contra entradas inválidas. Os resultados integram automaticamente o Laudo Técnico.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setActiveTab('relatorio')}
-                  className="bg-emerald-900 hover:bg-emerald-800 text-white font-bold px-5 py-3 rounded-xl flex items-center justify-center gap-2 shadow transition-all shrink-0"
-                >
-                  <FileText className="w-5 h-5 text-amber-400" />
-                  Exportar no Laudo PDF
-                </button>
+            <section className="space-y-8">
+              <div>
+                <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+                  Ferramentas de Precisão no Campo
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-stone-900 mt-2">
+                  Calculadoras Agronómicas
+                </h2>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* 1. REGULAGEM DE PULVERIZADOR */}
-                <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm flex flex-col justify-between space-y-5">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2.5 text-emerald-900">
-                      <Droplets className="w-6 h-6" />
-                      <h3 className="font-black text-lg">1. Pulverizador em Pastagem</h3>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                        Vazão por ponta / bico (L/min)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.05"
-                        min="0.05"
-                        value={vazaoBico}
-                        onChange={(e) => setVazaoBico(Math.max(0.05, Number(e.target.value)))}
-                        className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                          Velocidade (km/h)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0.5"
-                          value={velocidadeTrator}
-                          onChange={(e) => setVelocidadeTrator(Math.max(0.5, Number(e.target.value)))}
-                          className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                          Espaç. Bicos (m)
-                        </label>
-                        <input
-                          type="number"
-                          step="0.05"
-                          min="0.1"
-                          value={espacamentoBicos}
-                          onChange={(e) => setEspacamentoBicos(Math.max(0.1, Number(e.target.value)))}
-                          className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                        Capacidade do Tanque (Litros)
-                      </label>
-                      <input
-                        type="number"
-                        step="50"
-                        min="10"
-                        value={capacidadeTanque}
-                        onChange={(e) => setCapacidadeTanque(Math.max(10, Number(e.target.value)))}
-                        className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                      />
-                    </div>
+              {/* CALCULADORA 1: PULVERIZADOR */}
+              <div className="bg-white rounded-2xl border-2 border-stone-200 p-5 sm:p-6 shadow-sm space-y-5">
+                <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                  <div>
+                    <h3 className="text-xl font-black text-stone-900">
+                      1. Calibração de Pulverizador (Volume de Calda)
+                    </h3>
+                    <p className="text-sm text-stone-600">
+                      Fórmula: Q (L/ha) = (q × 600) / (V × E)
+                    </p>
                   </div>
+                  <Droplets className="w-6 h-6 text-emerald-700" />
+                </div>
 
-                  <div className="p-4 rounded-xl bg-emerald-950 text-white space-y-2">
-                    <span className="text-xs uppercase font-bold text-amber-400">Volume de Calda</span>
-                    <div className="text-3xl font-black">{resultPulverizador.volumeCalda} L/ha</div>
-                    <p className="text-xs text-emerald-200">
-                      Autonomia do tanque: <strong>{resultPulverizador.autonomiaHa} ha/tanque</strong>
-                    </p>
-                    <p className="text-xs font-semibold text-amber-300 pt-1 border-t border-emerald-800">
-                      {resultPulverizador.status}
-                    </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Caudal do Bico (L/min)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={vazaoBico}
+                      onChange={(e) => setVazaoBico(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Velocidade (km/h)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={velocidadeTrator}
+                      onChange={(e) => setVelocidadeTrator(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Espaçamento Bicos (m)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={espacamentoBicos}
+                      onChange={(e) => setEspacamentoBicos(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Capacidade do Depósito (L)
+                    </label>
+                    <input
+                      type="number"
+                      step="10"
+                      value={capacidadeTanque}
+                      onChange={(e) => setCapacidadeTanque(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
                   </div>
                 </div>
 
-                {/* 2. CÁLCULO BÁSICO DE CALAGEM */}
-                <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm flex flex-col justify-between space-y-5">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2.5 text-emerald-900">
-                      <Layers className="w-6 h-6" />
-                      <h3 className="font-black text-lg">2. Necessidade de Calagem</h3>
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-xl bg-stone-900 p-4 text-white">
+                  <div>
+                    <span className="text-xs text-stone-300 block">Volume de Calda</span>
+                    <span className="text-2xl font-black text-amber-400">{resultPulverizador.volumeCalda} L/ha</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-stone-300 block">Autonomia por Depósito</span>
+                    <span className="text-2xl font-black text-emerald-400">{resultPulverizador.autonomiaHa} ha</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-stone-300 block">Diagnóstico Operacional</span>
+                    <span className="text-sm font-bold block mt-1">{resultPulverizador.status}</span>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                          V% Atual (Solo)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={vAtual}
-                          onChange={(e) => setVAtual(Math.min(100, Math.max(0, Number(e.target.value))))}
-                          className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                          V% Desejado
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={vDesejado}
-                          onChange={(e) => setVDesejado(Math.min(100, Math.max(0, Number(e.target.value))))}
-                          className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                        />
-                      </div>
-                    </div>
+              {/* CALCULADORA 2: CALAGEM (Ca + Mg e Al³⁺) + DISPONIBILIDADE + FERTILIDADE NATURAL */}
+              <div className="space-y-6 rounded-2xl border-2 border-stone-200 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-200 pb-4">
+                  <div>
+                    <h3 className="text-xl font-black text-stone-900">
+                      2. Calagem (Ca + Mg e Neutralização de Al³⁺) & Disponibilidade
+                    </h3>
+                    <p className="text-sm text-stone-600 mt-1">
+                      Dimensionamento pelo maior critério entre atendimento de Ca + Mg e neutralização de Al³⁺.
+                    </p>
+                  </div>
 
-                    <div>
-                      <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                        CTC a pH 7,0 (cmolc/dm³)
-                      </label>
+                  <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-2 text-sm font-bold text-emerald-950">
+                    <input
+                      type="checkbox"
+                      checked={incluirFertilidadeNatural}
+                      onChange={(e) => setIncluirFertilidadeNatural(e.target.checked)}
+                      className="h-4 w-4 rounded border-emerald-400 text-emerald-700"
+                    />
+                    Incluir dados da análise de fertilidade natural do solo
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Ca + Mg Exigido (cmolc/dm³)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={caMgExigido}
+                      onChange={(e) => setCaMgExigido(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Argila Atual (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={argilaAtual}
+                      onChange={(e) => setArgilaAtual(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Fator Y (opcional)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder={`Auto (${resultadoCalagem.yUsado})`}
+                      value={fatorY}
+                      onChange={(e) => setFatorY(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      PRNT do Calcário (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={prntCalcario}
+                      onChange={(e) => setPrntCalcario(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className="mb-3 text-sm font-extrabold uppercase text-stone-800">
+                    Análise Atual do Solo & Classe de Disponibilidade
+                  </h4>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                    <div className="rounded-xl border border-stone-200 p-3 bg-stone-50/60">
+                      <label className="block text-xs font-bold text-stone-700">Ca²⁺ (cmolc/dm³)</label>
                       <input
                         type="number"
                         step="0.1"
-                        min="0.1"
-                        value={ctcSolo}
-                        onChange={(e) => setCtcSolo(Math.max(0.1, Number(e.target.value)))}
-                        className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
+                        value={caAtual}
+                        onChange={(e) => setCaAtual(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-semibold"
                       />
+                      <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesAtuais.Ca)}`}>
+                        {classesAtuais.Ca}
+                      </span>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                        PRNT do Calcário (%)
-                      </label>
+                    <div className="rounded-xl border border-stone-200 p-3 bg-stone-50/60">
+                      <label className="block text-xs font-bold text-stone-700">Mg²⁺ (cmolc/dm³)</label>
                       <input
                         type="number"
-                        min="40"
-                        max="120"
-                        value={prntCalcario}
-                        onChange={(e) => setPrntCalcario(Math.max(1, Number(e.target.value)))}
-                        className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
+                        step="0.1"
+                        value={mgAtual}
+                        onChange={(e) => setMgAtual(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-semibold"
                       />
+                      <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesAtuais.Mg)}`}>
+                        {classesAtuais.Mg}
+                      </span>
                     </div>
-                  </div>
 
-                  <div className="p-4 rounded-xl bg-emerald-950 text-white space-y-2">
-                    <span className="text-xs uppercase font-bold text-amber-400">Dose Recomendada (NC)</span>
-                    <div className="text-3xl font-black">{resultCalagem.doseTha} t/ha</div>
-                    <p className="text-xs text-emerald-200">
-                      Fórmula: NC = [(V₂ - V₁) × CTC] / PRNT
-                    </p>
-                    <p className="text-xs font-semibold text-amber-300 pt-1 border-t border-emerald-800">
-                      {resultCalagem.necessario
-                        ? `Equivalente a ${(Number(resultCalagem.doseTha) * 1000).toFixed(0)} kg/ha de calcário.`
-                        : 'Solo já atinge ou supera o V% desejado.'}
-                    </p>
+                    <div className="rounded-xl border border-stone-200 p-3 bg-stone-50/60">
+                      <label className="block text-xs font-bold text-stone-700">Al³⁺ (cmolc/dm³)</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={alAtual}
+                        onChange={(e) => setAlAtual(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-semibold"
+                      />
+                      <span className="mt-2 inline-block rounded-full border border-stone-300 bg-stone-200 px-2.5 py-0.5 text-xs font-bold text-stone-800">
+                        Neutralização Al
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl border border-stone-200 p-3 bg-stone-50/60">
+                      <label className="block text-xs font-bold text-stone-700">P (mg/dm³)</label>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={pAtual}
+                        onChange={(e) => setPAtual(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-semibold"
+                      />
+                      <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesAtuais.P)}`}>
+                        {classesAtuais.P}
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl border border-stone-200 p-3 bg-stone-50/60">
+                      <label className="block text-xs font-bold text-stone-700">K (mg/dm³)</label>
+                      <input
+                        type="number"
+                        step="1"
+                        value={kAtual}
+                        onChange={(e) => setKAtual(e.target.value)}
+                        className="mt-1 w-full rounded-lg border border-stone-300 bg-white px-2.5 py-1.5 text-sm font-semibold"
+                      />
+                      <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesAtuais.K)}`}>
+                        {classesAtuais.K}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* 3. DENSIDADE DE SEMENTES DE MILHO */}
-                <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm flex flex-col justify-between space-y-5">
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2.5 text-emerald-900">
-                      <Sprout className="w-6 h-6" />
-                      <h3 className="font-black text-lg">3. Sementes de Milho</h3>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                        Finalidade da Lavoura
-                      </label>
-                      <select
-                        value={finalidadeMilho}
-                        onChange={(e) => {
-                          setFinalidadeMilho(e.target.value);
-                          setPopulacaoDesejada(e.target.value === 'Silagem' ? 72000 : 65000);
-                        }}
-                        className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                      >
-                        <option value="Grão">Produção de Grãos</option>
-                        <option value="Silagem">Silagem de Planta Inteira</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                        População Final Desejada (plantas/ha)
-                      </label>
-                      <input
-                        type="number"
-                        step="1000"
-                        min="20000"
-                        value={populacaoDesejada}
-                        onChange={(e) => setPopulacaoDesejada(Math.max(1000, Number(e.target.value)))}
-                        className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                          Espaç. Linhas (m)
-                        </label>
+                {incluirFertilidadeNatural && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <h4 className="text-sm font-extrabold uppercase text-amber-950">
+                        Análise da Fertilidade Natural do Solo (Referência Basal)
+                      </h4>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-amber-950">Argila Natural (%):</label>
                         <input
                           type="number"
-                          step="0.05"
-                          min="0.3"
-                          value={espacamentoLinhas}
-                          onChange={(e) => setEspacamentoLinhas(Math.max(0.1, Number(e.target.value)))}
-                          className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
+                          step="1"
+                          value={argilaNatural}
+                          onChange={(e) => setArgilaNatural(e.target.value)}
+                          className="w-20 rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs font-semibold"
                         />
                       </div>
-                      <div>
-                        <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                          Germinação (%)
-                        </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      <div className="rounded-xl border border-amber-200 bg-white p-3">
+                        <label className="block text-xs font-bold text-stone-700">Ca²⁺ Natural</label>
                         <input
                           type="number"
-                          min="50"
-                          max="100"
-                          value={germinacaoSemente}
-                          onChange={(e) => setGerminacaoSemente(Math.min(100, Math.max(10, Number(e.target.value))))}
-                          className="w-full p-3 rounded-xl border-2 border-stone-300 font-bold text-stone-900 focus:border-emerald-700 outline-none"
+                          step="0.1"
+                          value={caNatural}
+                          onChange={(e) => setCaNatural(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm font-semibold"
                         />
+                        <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesNaturais.Ca)}`}>
+                          {classesNaturais.Ca}
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl border border-amber-200 bg-white p-3">
+                        <label className="block text-xs font-bold text-stone-700">Mg²⁺ Natural</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={mgNatural}
+                          onChange={(e) => setMgNatural(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm font-semibold"
+                        />
+                        <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesNaturais.Mg)}`}>
+                          {classesNaturais.Mg}
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl border border-amber-200 bg-white p-3">
+                        <label className="block text-xs font-bold text-stone-700">Al³⁺ Natural</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          value={alNatural}
+                          onChange={(e) => setAlNatural(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm font-semibold"
+                        />
+                        <span className="mt-2 inline-block rounded-full border border-amber-300 bg-amber-100 px-2.5 py-0.5 text-xs font-bold text-amber-950">
+                          Condição Natural
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl border border-amber-200 bg-white p-3">
+                        <label className="block text-xs font-bold text-stone-700">P Natural</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={pNatural}
+                          onChange={(e) => setPNatural(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm font-semibold"
+                        />
+                        <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesNaturais.P)}`}>
+                          {classesNaturais.P}
+                        </span>
+                      </div>
+
+                      <div className="rounded-xl border border-amber-200 bg-white p-3">
+                        <label className="block text-xs font-bold text-stone-700">K Natural</label>
+                        <input
+                          type="number"
+                          step="1"
+                          value={kNatural}
+                          onChange={(e) => setKNatural(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-stone-300 px-2.5 py-1.5 text-sm font-semibold"
+                        />
+                        <span className={`mt-2 inline-block rounded-full border px-2.5 py-0.5 text-xs font-bold ${badgeClasseDisponibilidade(classesNaturais.K)}`}>
+                          {classesNaturais.K}
+                        </span>
                       </div>
                     </div>
                   </div>
+                )}
 
-                  <div className="p-4 rounded-xl bg-emerald-950 text-white space-y-2">
-                    <span className="text-xs uppercase font-bold text-amber-400">Regulagem da Semeadora</span>
-                    <div className="text-3xl font-black">{resultSementes.sementesMetro} sem/m</div>
-                    <p className="text-xs text-emerald-200">
-                      Estande final esperado: <strong>{resultSementes.plantasMetro} plantas/m</strong>
+                <div className="grid grid-cols-1 gap-4 rounded-2xl bg-emerald-950 p-5 text-white sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-200">Dose Recomendada</p>
+                    <p className="mt-1 text-2xl font-black text-amber-400">
+                      {resultadoCalagem.quantidadeTonHa} t/ha
                     </p>
-                    <p className="text-xs font-semibold text-amber-300 pt-1 border-t border-emerald-800">
-                      Consumo: {resultSementes.sacosHa} sacos/ha (60 mil sem.)
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-200">Critério Limitante</p>
+                    <p className="mt-1 text-sm font-bold">{resultadoCalagem.criterioLimitante}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-200">NC por Al³⁺ (Y = {resultadoCalagem.yUsado})</p>
+                    <p className="mt-1 text-base font-bold">{resultadoCalagem.ncAl} t/ha (base)</p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-emerald-200">NC por Ca + Mg (Atual: {resultadoCalagem.somaCaMgAtual})</p>
+                    <p className="mt-1 text-base font-bold">{resultadoCalagem.ncCaMg} t/ha (base)</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* CALCULADORA 3: SEMENTES DE MILHO */}
+              <div className="bg-white rounded-2xl border-2 border-stone-200 p-5 sm:p-6 shadow-sm space-y-5">
+                <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+                  <div>
+                    <h3 className="text-xl font-black text-stone-900">
+                      3. População e Distribuição de Sementes de Milho
+                    </h3>
+                    <p className="text-sm text-stone-600">
+                      Ajuste por espaçamento e poder germinativo (saco de 60.000 sementes).
                     </p>
+                  </div>
+                  <Sprout className="w-6 h-6 text-emerald-700" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      População Desejada (pl/ha)
+                    </label>
+                    <input
+                      type="number"
+                      step="1000"
+                      value={populacaoDesejada}
+                      onChange={(e) => setPopulacaoDesejada(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Espaçamento Entre Linhas (m)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.05"
+                      value={espacamentoLinhas}
+                      onChange={(e) => setEspacamentoLinhas(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Germinação (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="1"
+                      value={germinacaoSemente}
+                      onChange={(e) => setGerminacaoSemente(Number(e.target.value))}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Finalidade
+                    </label>
+                    <select
+                      value={finalidadeMilho}
+                      onChange={(e) => setFinalidadeMilho(e.target.value)}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-bold"
+                    >
+                      <option value="Grão">Milho Grão</option>
+                      <option value="Silagem">Milho Silagem</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-xl bg-stone-900 p-4 text-white">
+                  <div>
+                    <span className="text-xs text-stone-300 block">Plantas por Metro Linear</span>
+                    <span className="text-2xl font-black text-amber-400">{resultSementes.plantasMetro} pl/m</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-stone-300 block">Sementes por Metro Linear</span>
+                    <span className="text-2xl font-black text-emerald-400">{resultSementes.sementesMetro} sem/m</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-stone-300 block">Necessidade por Hectare ({finalidadeMilho})</span>
+                    <span className="text-2xl font-black text-white">{resultSementes.sacosHa} sacos/ha</span>
                   </div>
                 </div>
               </div>
@@ -939,247 +1228,134 @@ export default function AgroTechFieldPro() {
           )}
 
           {/* ========================================================= */}
-          {/* MÓDULO 4: DASHBOARD EXECUTIVO E GESTÃO                    */}
+          {/* MÓDULO 4: DASHBOARD & GESTÃO                             */}
           {/* ========================================================= */}
           {activeTab === 'dashboard' && (
             <section className="space-y-6">
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-black text-stone-900">
-                  Dashboard Executivo & Indicadores Zootécnicos/Agrícolas
+              <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm">
+                <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+                  Indicadores Operacionais
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-black text-stone-900 mt-2">
+                  Dashboard & Gestão do Talhão
                 </h2>
-                <p className="text-stone-600 text-sm sm:text-base mt-1">
-                  Monitoramento consolidado de produtividade, eficiência operacional e custos por hectare.
-                </p>
               </div>
 
-              {/* KPIs */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white p-5 rounded-2xl border-2 border-stone-200 shadow-sm">
-                  <span className="text-xs font-extrabold uppercase text-stone-500">Produtividade Silagem</span>
-                  <div className="text-3xl font-black text-emerald-900 mt-1">48,5 t/ha</div>
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 mt-2">
-                    <TrendingUp className="w-4 h-4" /> +12% acima da média regional
-                  </span>
+                  <span className="text-xs font-extrabold uppercase text-stone-500">Calagem (Ca+Mg / Al³⁺)</span>
+                  <p className="text-2xl font-black text-emerald-900 mt-1">
+                    {resultadoCalagem.quantidadeTonHa} t/ha
+                  </p>
+                  <span className="text-xs font-semibold text-stone-600">{resultadoCalagem.criterioLimitante}</span>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border-2 border-stone-200 shadow-sm">
-                  <span className="text-xs font-extrabold uppercase text-stone-500">Lotação Pastagem</span>
-                  <div className="text-3xl font-black text-emerald-900 mt-1">3,4 UA/ha</div>
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 mt-2">
-                    <Activity className="w-4 h-4" /> Sistema Rotacionado Adubado
-                  </span>
+                  <span className="text-xs font-extrabold uppercase text-stone-500">Volume de Calda</span>
+                  <p className="text-2xl font-black text-emerald-900 mt-1">
+                    {resultPulverizador.volumeCalda} L/ha
+                  </p>
+                  <span className="text-xs font-semibold text-stone-600">Autonomia: {resultPulverizador.autonomiaHa} ha</span>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border-2 border-stone-200 shadow-sm">
-                  <span className="text-xs font-extrabold uppercase text-stone-500">GMD Médio Rebanho</span>
-                  <div className="text-3xl font-black text-amber-600 mt-1">0,92 kg/dia</div>
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-stone-600 mt-2">
-                    Recria/Engorda (Período Águas)
-                  </span>
+                  <span className="text-xs font-extrabold uppercase text-stone-500">Sementes / ha</span>
+                  <p className="text-2xl font-black text-emerald-900 mt-1">
+                    {resultSementes.sacosHa} sacos
+                  </p>
+                  <span className="text-xs font-semibold text-stone-600">{resultSementes.sementesMetro} sem/m</span>
                 </div>
 
                 <div className="bg-white p-5 rounded-2xl border-2 border-stone-200 shadow-sm">
-                  <span className="text-xs font-extrabold uppercase text-stone-500">Economia com Drones</span>
-                  <div className="text-3xl font-black text-emerald-900 mt-1">-24,8%</div>
-                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 mt-2">
-                    Redução em herbicidas (Taxa Variável)
+                  <span className="text-xs font-extrabold uppercase text-stone-500">Estado P / K Atual</span>
+                  <p className="text-base font-black text-stone-900 mt-2">
+                    P: {classesAtuais.P} • K: {classesAtuais.K}
+                  </p>
+                  <span className="text-xs font-semibold text-stone-600">
+                    Ca: {classesAtuais.Ca} • Mg: {classesAtuais.Mg}
                   </span>
-                </div>
-              </div>
-
-              {/* Gráficos Visuais */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Gráfico 1: GMD Águas vs Seca */}
-                <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm">
-                  <h3 className="font-black text-lg text-stone-900 mb-1">
-                    Ganho Médio Diário (GMD) por Estratégia Nutricional
-                  </h3>
-                  <p className="text-xs text-stone-500 mb-6">Comparativo em kg/animal/dia</p>
-
-                  <div className="space-y-4">
-                    {[
-                      { label: 'Pasto Extensivo (Sem adubação / Sal mineral)', val: 0.42, pct: 35, color: 'bg-stone-400' },
-                      { label: 'Rotacionado + Proteinado Seca (0,3% PV)', val: 0.68, pct: 58, color: 'bg-amber-500' },
-                      { label: 'Rotacionado Adubado + Aditivado (Águas)', val: 0.94, pct: 80, color: 'bg-emerald-600' },
-                      { label: 'Terminação Intensiva a Pasto (TIP - 1,5% PV)', val: 1.18, pct: 100, color: 'bg-emerald-900' }
-                    ].map((row, idx) => (
-                      <div key={idx}>
-                        <div className="flex justify-between text-xs font-bold text-stone-800 mb-1">
-                          <span>{row.label}</span>
-                          <span>{row.val.toFixed(2)} kg/dia</span>
-                        </div>
-                        <div className="w-full h-4 bg-stone-100 rounded-full overflow-hidden">
-                          <div className={`h-full ${row.color} rounded-full`} style={{ width: `${row.pct}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Gráfico 2: Distribuição de Custos Milho Silagem */}
-                <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm">
-                  <h3 className="font-black text-lg text-stone-900 mb-1">
-                    Composição de Custo Operacional (Milho Silagem)
-                  </h3>
-                  <p className="text-xs text-stone-500 mb-6">Participação percentual por centro de custo</p>
-
-                  <div className="space-y-4">
-                    {[
-                      { label: 'Fertilizantes e Corretivos (Calagem/NPK)', pct: 38, color: 'bg-emerald-800' },
-                      { label: 'Operações Mecanizadas (Plantio/Colheita/Ensilagem)', pct: 27, color: 'bg-amber-500' },
-                      { label: 'Sementes Híbridas de Alta Tecnologia', pct: 21, color: 'bg-emerald-500' },
-                      { label: 'Defensivos e Controle Fitossanitário', pct: 14, color: 'bg-sky-600' }
-                    ].map((item, idx) => (
-                      <div key={idx}>
-                        <div className="flex justify-between text-xs font-bold text-stone-800 mb-1">
-                          <span>{item.label}</span>
-                          <span>{item.pct}%</span>
-                        </div>
-                        <div className="w-full h-4 bg-stone-100 rounded-full overflow-hidden">
-                          <div className={`h-full ${item.color} rounded-full`} style={{ width: `${item.pct}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </div>
             </section>
           )}
 
           {/* ========================================================= */}
-          {/* MÓDULO 5: RELATÓRIO TÉCNICO / LAUDO PDF                   */}
+          {/* MÓDULO 5: RELATÓRIO TÉCNICO / LAUDO                       */}
           {/* ========================================================= */}
           {activeTab === 'relatorio' && (
             <section className="space-y-6">
-              <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 print:hidden">
-                <div>
-                  <h2 className="text-2xl font-black text-stone-900">Emissão de Laudo Técnico Agronômico</h2>
-                  <p className="text-sm text-stone-600">
-                    Revise os dados da propriedade e clique em Imprimir / Salvar PDF para gerar o documento oficial.
-                  </p>
-                </div>
-                <button
-                  onClick={() => window.print()}
-                  className="bg-amber-400 hover:bg-amber-500 text-emerald-950 font-black px-6 py-3 rounded-xl flex items-center justify-center gap-2 shadow-md transition-all"
-                >
-                  <Printer className="w-5 h-5" />
-                  Imprimir / Salvar PDF
-                </button>
-              </div>
+              <div className="bg-white p-6 rounded-2xl border-2 border-stone-200 shadow-sm space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-stone-200 pb-4">
+                  <div>
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-3 py-1 rounded-full">
+                      Emissão de Laudo de Campo
+                    </span>
+                    <h2 className="text-2xl font-black text-stone-900 mt-2">
+                      Relatório Técnico Agronómico
+                    </h2>
+                  </div>
 
-              {/* Campos editáveis (ocultos na impressão) */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-5 rounded-2xl border-2 border-stone-200 print:hidden">
-                <div>
-                  <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                    Propriedade / Cliente / Talhão
-                  </label>
-                  <input
-                    type="text"
-                    value={produtorNome}
-                    onChange={(e) => setProdutorNome(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border-2 border-stone-300 font-bold"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-800 shadow"
+                  >
+                    <Printer className="w-4 h-4" /> Imprimir / Guardar PDF
+                  </button>
                 </div>
-                <div>
-                  <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                    Responsável Técnico (CREA)
-                  </label>
-                  <input
-                    type="text"
-                    value={responsavelTecnico}
-                    onChange={(e) => setResponsavelTecnico(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border-2 border-stone-300 font-bold"
-                  />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Propriedade / Talhão
+                    </label>
+                    <input
+                      type="text"
+                      value={produtorNome}
+                      onChange={(e) => setProdutorNome(e.target.value)}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-extrabold uppercase text-stone-700">
+                      Responsável Técnico
+                    </label>
+                    <input
+                      type="text"
+                      value={responsavelTecnico}
+                      onChange={(e) => setResponsavelTecnico(e.target.value)}
+                      className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-semibold"
+                    />
+                  </div>
                 </div>
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-extrabold uppercase text-stone-700 mb-1">
-                    Recomendações e Observações de Campo
+
+                <div>
+                  <label className="block text-xs font-extrabold uppercase text-stone-700">
+                    Observações e Recomendações de Campo
                   </label>
                   <textarea
-                    rows={2}
+                    rows="3"
                     value={observacoesCampo}
                     onChange={(e) => setObservacoesCampo(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border-2 border-stone-300 font-medium"
+                    className="mt-1 w-full rounded-xl border-2 border-stone-300 bg-stone-50 px-3 py-2 text-sm font-medium"
                   />
                 </div>
-              </div>
 
-              {/* FOLHA A4 FORMATADA DO LAUDO */}
-              <div className="bg-white p-8 sm:p-10 rounded-2xl border-2 border-stone-300 shadow-md max-w-4xl mx-auto space-y-6">
-                <div className="border-b-2 border-emerald-900 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-2xl font-black text-emerald-950">LAUDO TÉCNICO AGRONÔMICO</h3>
-                    <p className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                      AgroTech Field Pro • Recomendação Operacional de Campo
-                    </p>
-                  </div>
-                  <div className="text-left sm:text-right text-xs text-stone-600">
-                    <p className="font-bold">Data de Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
-                    <p>Conformidade LGPD • Uso Exclusivo Técnico</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-stone-50 p-4 rounded-xl border border-stone-200 text-sm">
-                  <div>
-                    <span className="text-xs font-extrabold uppercase text-stone-500 block">Propriedade / Área</span>
-                    <span className="font-black text-stone-900">{produtorNome}</span>
-                  </div>
-                  <div>
-                    <span className="text-xs font-extrabold uppercase text-stone-500 block">Responsável Técnico</span>
-                    <span className="font-black text-stone-900">{responsavelTecnico}</span>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="font-black text-base uppercase text-emerald-900 border-b border-stone-200 pb-1">
-                    1. Parâmetros Calculados e Prescrições
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-4 rounded-xl border border-stone-300">
-                      <span className="text-xs font-extrabold uppercase text-stone-500">Calagem (Saturação Bases)</span>
-                      <p className="text-2xl font-black text-emerald-950 mt-1">{resultCalagem.doseTha} t/ha</p>
-                      <p className="text-xs text-stone-600 mt-1">
-                        V₁: {vAtual}% → V₂: {vDesejado}% | CTC: {ctcSolo} | PRNT: {prntCalcario}%
-                      </p>
-                    </div>
-
-                    <div className="p-4 rounded-xl border border-stone-300">
-                      <span className="text-xs font-extrabold uppercase text-stone-500">Pulverização Pastagem</span>
-                      <p className="text-2xl font-black text-emerald-950 mt-1">{resultPulverizador.volumeCalda} L/ha</p>
-                      <p className="text-xs text-stone-600 mt-1">
-                        Vazão: {vazaoBico} L/min | Vel.: {velocidadeTrator} km/h | Autonomia: {resultPulverizador.autonomiaHa} ha
-                      </p>
-                    </div>
-
-                    <div className="p-4 rounded-xl border border-stone-300">
-                      <span className="text-xs font-extrabold uppercase text-stone-500">Plantio Milho ({finalidadeMilho})</span>
-                      <p className="text-2xl font-black text-emerald-950 mt-1">{resultSementes.sementesMetro} sem/m</p>
-                      <p className="text-xs text-stone-600 mt-1">
-                        População: {populacaoDesejada.toLocaleString('pt-BR')} pl/ha | Espaç.: {espacamentoLinhas} m
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <h4 className="font-black text-base uppercase text-emerald-900 border-b border-stone-200 pb-1">
-                    2. Orientações Técnicas de Manejo
-                  </h4>
-                  <p className="text-sm text-stone-800 leading-relaxed bg-stone-50 p-4 rounded-xl border border-stone-200">
-                    {observacoesCampo}
+                <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 space-y-2 text-sm">
+                  <p>
+                    <strong>Calagem Recomendada:</strong> {resultadoCalagem.quantidadeTonHa} t/ha (PRNT {prntCalcario}%) — Critério limitante: <strong>{resultadoCalagem.criterioLimitante}</strong>.
                   </p>
-                </div>
-
-                <div className="pt-10 flex flex-col sm:flex-row justify-between items-center gap-8 text-xs text-stone-600">
-                  <div className="w-64 border-t border-stone-400 pt-2 text-center">
-                    <p className="font-bold text-stone-900">{responsavelTecnico}</p>
-                    <p>Assinatura do Engenheiro Agrônomo</p>
-                  </div>
-                  <div className="w-64 border-t border-stone-400 pt-2 text-center">
-                    <p className="font-bold text-stone-900">{produtorNome}</p>
-                    <p>Ciente do Produtor / Administrador</p>
-                  </div>
+                  <p>
+                    <strong>Disponibilidade Atual:</strong> P ({classesAtuais.P}), K ({classesAtuais.K}), Ca ({classesAtuais.Ca}), Mg ({classesAtuais.Mg}).
+                  </p>
+                  {incluirFertilidadeNatural && (
+                    <p>
+                      <strong>Fertilidade Natural (Referência):</strong> P ({classesNaturais.P}), K ({classesNaturais.K}), Ca ({classesNaturais.Ca}), Mg ({classesNaturais.Mg}).
+                    </p>
+                  )}
+                  <p>
+                    <strong>Pulverização:</strong> {resultPulverizador.volumeCalda} L/ha • <strong>Sementes:</strong> {resultSementes.sacosHa} sacos/ha ({finalidadeMilho}).
+                  </p>
                 </div>
               </div>
             </section>
@@ -1187,8 +1363,8 @@ export default function AgroTechFieldPro() {
         </div>
       </main>
 
-      {/* NAVEGAÇÃO INFERIOR FIXA MOBILE (OTIMIZADA PARA USO COM UMA MÃO NO CAMPO) */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-emerald-950 border-t border-emerald-800 flex justify-around py-2 px-1 z-30 shadow-2xl print:hidden">
+      {/* MENU INFERIOR MOBILE */}
+      <nav className="md:hidden fixed bottom-0 inset-x-0 bg-emerald-950 text-white border-t border-emerald-900 flex justify-around py-2 z-20">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -1196,49 +1372,40 @@ export default function AgroTechFieldPro() {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center justify-center px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all ${
-                isActive ? 'text-amber-400 bg-emerald-900/90' : 'text-emerald-200'
+              className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] font-bold ${
+                isActive ? 'text-amber-400' : 'text-emerald-200'
               }`}
             >
-              <Icon className="w-5 h-5 mb-0.5" />
+              <Icon className="w-5 h-5" />
               <span>{item.label}</span>
             </button>
           );
         })}
       </nav>
 
-      {/* MODAL DE ZOOM PARA DIAGNÓSTICO VISUAL NO CAMPO */}
+      {/* MODAL DE ZOOM DIAGNÓSTICO */}
       {zoomGuide && (
         <div
-          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4"
           onClick={() => setZoomGuide(null)}
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
         >
           <div
-            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl border-2 border-amber-400"
             onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl"
           >
-            <div className="bg-emerald-950 text-white px-5 py-3.5 flex items-center justify-between">
-              <div>
-                <span className="text-[11px] font-extrabold uppercase text-amber-400">
-                  {zoomGuide.category} • Zoom Diagnóstico
-                </span>
-                <h3 className="font-black text-base sm:text-lg">{zoomGuide.title}</h3>
-              </div>
+            <div className="flex items-center justify-between p-4 border-b border-stone-200">
+              <h3 className="font-black text-lg text-stone-900">{zoomGuide.title}</h3>
               <button
+                type="button"
                 onClick={() => setZoomGuide(null)}
-                className="p-1.5 rounded-lg bg-emerald-900 hover:bg-emerald-800 text-white"
+                className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-800"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 bg-stone-950 h-72 sm:h-80">{zoomGuide.svgIllustration}</div>
-            <div className="p-5 space-y-2 bg-white">
-              <p className="text-sm text-stone-800">
-                <strong>Sintoma-chave:</strong> {zoomGuide.symptoms}
-              </p>
-              <p className="text-sm font-bold text-emerald-900">
-                Critério de ação: {zoomGuide.economicThreshold}
-              </p>
+            <div className="h-72 sm:h-96 bg-stone-900">{zoomGuide.svgIllustration}</div>
+            <div className="p-4 text-sm text-stone-700">
+              <strong>Nível de Dano Económico:</strong> {zoomGuide.economicThreshold}
             </div>
           </div>
         </div>
